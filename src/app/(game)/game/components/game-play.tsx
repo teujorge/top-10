@@ -3,9 +3,17 @@
 import OpenAI from "openai";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useGame } from "../hooks/useGame";
 import { useEffect, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogAction,
+  AlertDialogTrigger,
+  AlertDialogContent,
+} from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 export function GamePlay() {
   const {
@@ -17,14 +25,15 @@ export function GamePlay() {
     setCurrentPlayerIndex,
   } = useGame();
 
-  const [input, setInput] = useState("");
+  const [guess, setGuess] = useState("");
+  const [doubter, setDoubter] = useState<string>();
 
   useEffect(() => {
     async function initAiModerator() {
       const { res, data } = await moderator({ category });
 
       if (res.ok) {
-        setInput("");
+        setGuess("");
       } else {
         toast.error("Failed to submit guess... Please try again.");
         return;
@@ -48,9 +57,9 @@ export function GamePlay() {
     initAiModerator();
   }, [setList, category]);
 
-  async function handleGuess() {
+  async function handleGuess(doubters: string[]) {
     const { res, data } = await moderator({
-      guess: input,
+      guess: guess,
       list: list.map((li) => li.item),
     });
 
@@ -82,14 +91,14 @@ export function GamePlay() {
 
     // guess feedback
     else {
-      setInput("");
+      setGuess("");
 
       // correct guess
       if (guessFeedback.correct === true) {
         toast.success("Correct guess!");
         setList((prevList) =>
           prevList.map((li) => {
-            if (li.item === input) {
+            if (li.item === guess) {
               return { item: li.item, player: players[currentPlayerIndex] };
             }
             return li;
@@ -98,7 +107,7 @@ export function GamePlay() {
       }
 
       // incorrect guess
-      else if (guessFeedback.correct === false) {
+      else {
         toast.error("Incorrect guess... Next player!");
       }
 
@@ -112,6 +121,10 @@ export function GamePlay() {
   useEffect(() => {
     console.log("HERE:", list);
   }, [list]);
+
+  useEffect(() => {
+    console.log("HERE:", doubter);
+  }, [doubter]);
 
   return list.length === 0 ? (
     <main>LOADING...</main>
@@ -132,13 +145,64 @@ export function GamePlay() {
         <Input
           className="flex-1 min-h-[40px]"
           type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
+          value={guess}
+          onChange={(e) => setGuess(e.target.value)}
           placeholder="Enter your guess..."
         />
-        <Button className="ml-2" onClick={handleGuess}>
-          Guess
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button className="ml-2">Guess</Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <div>
+              <h1 className="text-xl">Any doubters?</h1>
+              <p className="text-muted-foreground">
+                If anyone thinks the guess is incorrect, they can challenge it.
+              </p>
+            </div>
+
+            <div className="p-4 flex justify-center flex-wrap gap-2 items-center overflow-x-hidden overflow-y-auto">
+              {players.map((player, index) => {
+                const isDoubter = doubter === player;
+                console.log("player", player, doubter, isDoubter);
+
+                return (
+                  <Button
+                    key={`doubter-${index}`}
+                    size="sm"
+                    variant="outline"
+                    className={cn(
+                      isDoubter ? "border-primary" : "text-muted-foreground"
+                    )}
+                    onClick={() => {
+                      if (isDoubter) setDoubter(undefined);
+                      else setDoubter(player);
+                    }}
+                  >
+                    {player}
+                  </Button>
+                );
+              })}
+            </div>
+
+            <div className="ml-auto flex flex-row gap-2">
+              <AlertDialogCancel onClick={() => handleGuess([])}>
+                Continue
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className={cn(
+                  buttonVariants({ variant: "destructive" }),
+                  doubter
+                    ? "opacity-100 pointer-events-auto"
+                    : "opacity-50 pointer-events-none"
+                )}
+                onClick={() => handleGuess([])}
+              >
+                Doubt!
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
       </section>
     </main>
   );
